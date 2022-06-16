@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Profit Calculator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#fafafa">
+    <link rel="icon" type="image/png" href="./favicon.png" />
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        body, input {
+            font-family: sans-serif;
+            font-size: 20pt;
+        }
+        label {
+            background: aliceblue;
+            padding: 2px 4px;
+            text-align: right;
+        }
+        label + strong {
+            text-align: center;
+        }
+        #balance, #pip {
+            appearance: none;
+            background: cornsilk;
+            padding: 5px;
+            width: 100%;
+            border: 3px inset darkgray;
+            border-radius: 5px;
+            text-align: center;
+        }
+        fieldset {
+            padding: 20px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            column-gap: 40px;
+            row-gap: 40px;
+            align-items: center;
+            max-width: 520px;
+        }
+        legend {
+            background: black;
+            border: 1px solid gold;
+            color: gold;
+            padding: 5px 10px;
+            margin-bottom: 10px;
+        }
+        fieldset {
+            border-color: gold;
+            border-style: solid;
+            border-width: 2px 0 0 0;
+            margin: 0;
+        }
+        #lot-size {
+            color: brown;
+        }
+        #gross {
+            color: blue;
+        }
+        #net {
+            color: darkgreen;
+        }
+        #commission {
+            color: crimson;
+        }
+        .num-field {
+            display: grid;
+            grid-template-columns: 53px 1fr 53px;
+            gap: 12px;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .num-field button {
+            all: unset;
+            cursor: pointer;
+            text-align: center;
+            background: black;
+            color: white;
+            font-size: 34pt;
+            font-weight: bolder;
+            border-radius: 30px;
+            width: 53px;
+        }
+        @media screen and (max-width: 530px) {
+            body {
+                font-size: 12pt;
+            }
+
+            .grid {
+                grid-template-columns: 110px 1fr;
+                column-gap: 20px;
+                row-gap: 20px;
+            }
+
+            .num-field button {
+                font-size: 14pt;
+                width: 30px;
+                height: 30px;
+            }
+
+            #balance, #pip {
+                padding: 2px;
+                border-width: 1px;
+                border-style: solid;
+                font-size: 15pt;
+            }
+
+            .num-field {
+                grid-template-columns: 30px 1fr 30px;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main id="profit-calculator">
+        <fieldset>
+            <legend>Calculate Profit</legend>
+            <div class="grid">
+                <label for="balance">Balance $</label>
+                <aside class="num-field">
+                    <button id="decrease-bal">&minus;</button>
+                    <input id="balance" type="number" name="balance" min="50" value="50" step="0.01" tabindex="1">
+                    <button id="increase-bal">&plus;</button>
+                </aside>
+                <label>Lot Size</label><strong id="lot-size">0.00</strong>
+                <label>Commission $</label><strong id="commission">0.00</strong>
+                <label for="pip">PIP Amount</label>
+                <aside class="num-field">
+                    <button id="decrease-pip">&minus;</button>
+                    <input id="pip" type="number" name="pip" min="10" value="10" tabindex="2">
+                    <button id="increase-pip">&plus;</button>
+                </aside>
+                <label>Gross Profit $</label><strong id="gross">0.00</strong>
+                <label>Net Profit $</label><strong id="net">0.00</strong>
+            </div>
+        </fieldset>
+    </main>
+    <script type="text/javascript">
+        const MAGIC_NUM = 830;
+        const COMMISSION_PCT = 30;
+        const MIN_BAL = 50;
+        const MIN_PIP = 1.0;
+        const DEF_NUM = '0.00';
+
+        const lotEl = document.getElementById('lot-size');
+        const comEl = document.getElementById('commission');
+        const balEl = document.getElementById('balance');
+        const pipEl = document.getElementById('pip');
+        const grossEl = document.getElementById('gross');
+        const netEl = document.getElementById('net');
+
+        balEl.addEventListener('change', calculateProfit);
+        balEl.addEventListener('keyup', calculateProfit);
+        pipEl.addEventListener('change', calculatePips);
+        pipEl.addEventListener('keyup', calculatePips);
+
+        document.getElementById('decrease-bal').addEventListener('click', evt => {
+            let bal = Number.parseFloat(balEl.value);
+            bal = isNaN(bal) ? 0.00 : bal;
+            balEl.value = Math.max(MIN_BAL, bal - 1);
+            calculateProfit();
+        });
+
+        document.getElementById('increase-bal').addEventListener('click', evt => {
+            let bal = Number.parseFloat(balEl.value);
+            bal = isNaN(bal) ? 0.00 : bal;
+            balEl.value = Math.max(MIN_BAL, bal + 1);
+            calculateProfit();
+        });
+
+        document.getElementById('decrease-pip').addEventListener('click', evt => {
+            let pip = Number.parseFloat(pipEl.value);
+            pip = isNaN(pip) ? 0.0 : pip;
+            pipEl.value = Math.max(MIN_PIP, pip - 10).toFixed(0);
+            calculatePips();
+        });
+
+        document.getElementById('increase-pip').addEventListener('click', evt => {
+            let pip = Number.parseFloat(pipEl.value);
+            pip = isNaN(pip) ? 0.0 : pip;
+            pipEl.value = Math.max(MIN_PIP, pip + 10).toFixed(0);
+            calculatePips();
+        });
+
+        function precise(num) {
+            const temp = `${num}`;
+
+            if (temp.length > 3) {
+                const reg = /(\d+\.\d{2})/g;
+                const result = reg.exec(temp);
+                return Number.parseFloat(result[1]);
+            } else {
+                return Number.parseFloat(num);
+            }
+        }
+
+        function update() {
+            const preciseLot = precise(Number.parseFloat(balEl.value) / MAGIC_NUM);
+            const commission = (preciseLot * COMMISSION_PCT).toFixed(2)
+            lotEl.textContent = isNaN(preciseLot) ? DEF_NUM : `${preciseLot}`;
+            comEl.textContent = isNaN(commission) ? DEF_NUM : `-${commission}`;
+            window.localStorage.setItem('asjBal', balEl.value);
+        }
+
+        function calculatePips() {
+            const preciseLot = precise(Number.parseFloat(balEl.value) / MAGIC_NUM);
+            const pips = Number.parseFloat(pipEl.value);
+            const gross = (preciseLot * pips).toFixed(2);
+            const net = (gross - (preciseLot * COMMISSION_PCT)).toFixed(2);
+            grossEl.textContent = isNaN(gross) ? DEF_NUM : `${gross}`;
+            netEl.textContent = isNaN(net) ? DEF_NUM : `${net}`;
+            window.localStorage.setItem('asjPip', pipEl.value);
+        }
+
+        function calculateProfit() {
+            update();
+            calculatePips();
+        }
+
+        // init
+        if (window.localStorage.getItem('asjBal') != null) {
+            balEl.value = window.localStorage.getItem('asjBal');
+        }
+
+        if (window.localStorage.getItem('asjPip') != null) {
+            pipEl.value = window.localStorage.getItem('asjPip');
+        }
+
+        calculateProfit();
+    </script>
+</body>
+</html>
